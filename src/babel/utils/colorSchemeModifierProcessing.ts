@@ -17,7 +17,14 @@ export interface ColorSchemeModifierProcessingState {
   stylesIdentifier: string;
   needsColorSchemeImport: boolean;
   colorSchemeVariableName: string;
+  // React Compiler compatibility fields
+  reactCompilerCompatible: boolean;
+  colorSchemeStyleKeys: Map<string, Set<string>>;
 }
+
+// Constants for memoized color scheme style object identifiers
+export const DARK_STYLES_IDENTIFIER = "_twDarkStyles";
+export const LIGHT_STYLES_IDENTIFIER = "_twLightStyles";
 
 /**
  * Process color scheme modifiers and generate conditional style expressions
@@ -30,10 +37,18 @@ export interface ColorSchemeModifierProcessingState {
  * @returns Array of AST nodes for conditional expressions
  *
  * @example
+ * Normal mode:
  * Input: [{ modifier: "dark", baseClass: "bg-gray-900" }, { modifier: "light", baseClass: "bg-white" }]
  * Output: [
- *   _twColorScheme === 'dark' && styles._dark_bg_gray_900,
- *   _twColorScheme === 'light' && styles._light_bg_white
+ *   _twColorScheme === 'dark' && _twStyles._dark_bg_gray_900,
+ *   _twColorScheme === 'light' && _twStyles._light_bg_white
+ * ]
+ *
+ * React Compiler mode:
+ * Input: [{ modifier: "dark", baseClass: "bg-gray-900" }, { modifier: "light", baseClass: "bg-white" }]
+ * Output: [
+ *   _twColorScheme === 'dark' && _twDarkStyles._dark_bg_gray_900,
+ *   _twColorScheme === 'light' && _twLightStyles._light_bg_white
  * ]
  */
 export function processColorSchemeModifiers(
@@ -82,14 +97,34 @@ export function processColorSchemeModifiers(
     // Register style in the registry
     state.styleRegistry.set(styleKey, styleObject);
 
-    // Create conditional: _twColorScheme === 'dark' && styles._dark_bg_gray_900
+    // In React Compiler mode, track style keys by scheme for memoized object generation
+    if (state.reactCompilerCompatible) {
+      let schemeKeys = state.colorSchemeStyleKeys.get(scheme);
+      if (!schemeKeys) {
+        schemeKeys = new Set();
+        state.colorSchemeStyleKeys.set(scheme, schemeKeys);
+      }
+      schemeKeys.add(styleKey);
+    }
+
+    // Create conditional expression
+    // Normal mode: _twColorScheme === 'dark' && _twStyles._dark_bg_gray_900
+    // React Compiler mode: _twColorScheme === 'dark' && _twDarkStyles._dark_bg_gray_900
     const colorSchemeCheck = t.binaryExpression(
       "===",
       t.identifier(state.colorSchemeVariableName),
       t.stringLiteral(scheme),
     );
 
-    const styleReference = t.memberExpression(t.identifier(state.stylesIdentifier), t.identifier(styleKey));
+    // In React Compiler mode, use memoized style objects (_twDarkStyles, _twLightStyles)
+    // This allows React Compiler to properly track dependencies
+    const stylesIdentifier = state.reactCompilerCompatible
+      ? scheme === "dark"
+        ? DARK_STYLES_IDENTIFIER
+        : LIGHT_STYLES_IDENTIFIER
+      : state.stylesIdentifier;
+
+    const styleReference = t.memberExpression(t.identifier(stylesIdentifier), t.identifier(styleKey));
 
     const conditionalExpression = t.logicalExpression("&&", colorSchemeCheck, styleReference);
 

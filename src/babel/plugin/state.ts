@@ -82,6 +82,26 @@ export type PluginOptions = {
      */
     importName?: string;
   };
+
+  /**
+   * Enable React Compiler compatibility mode for color scheme modifiers.
+   *
+   * When enabled, generates memoized style objects that React Compiler can
+   * properly track for dependency analysis, ensuring instant theme updates.
+   *
+   * - `false` (default): Uses inline conditionals (original behavior)
+   * - `true`: Generates memoized color scheme style objects
+   * - `'auto'`: Auto-detects React Compiler presence (checks for babel-plugin-react-compiler)
+   *
+   * @example
+   * // Enable React Compiler compatibility
+   * {
+   *   reactCompilerCompatible: true
+   * }
+   *
+   * @default false
+   */
+  reactCompilerCompatible?: boolean | "auto";
 };
 
 /**
@@ -121,10 +141,30 @@ export type PluginState = PluginPass & {
   functionComponentsNeedingColorScheme: Set<NodePath<BabelTypes.Function>>;
   // Track function components that need windowDimensions hook injection
   functionComponentsNeedingWindowDimensions: Set<NodePath<BabelTypes.Function>>;
+  // React Compiler compatibility mode
+  reactCompilerCompatible: boolean;
+  // Track color scheme style keys for memoized object generation
+  // Maps scheme ('dark' | 'light') to set of style keys used with that scheme
+  colorSchemeStyleKeys: Map<string, Set<string>>;
 };
 
 // Default identifier for the generated StyleSheet constant
 export const DEFAULT_STYLES_IDENTIFIER = "_twStyles";
+
+/**
+ * Detect if React Compiler is enabled in the project
+ * Checks for babel-plugin-react-compiler in the babel config
+ */
+function detectReactCompiler(): boolean {
+  // In auto mode, we check if babel-plugin-react-compiler is present
+  // This is a simple heuristic - we check if the module is resolvable
+  try {
+    require.resolve("babel-plugin-react-compiler");
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Create initial plugin state for a file
@@ -150,6 +190,14 @@ export function createInitialState(
 
   // Load custom theme from tailwind.config.*
   const customTheme = extractCustomTheme(filename);
+
+  // Determine React Compiler compatibility mode
+  let reactCompilerCompatible = false;
+  if (options?.reactCompilerCompatible === "auto") {
+    reactCompilerCompatible = detectReactCompiler();
+  } else if (options?.reactCompilerCompatible === true) {
+    reactCompilerCompatible = true;
+  }
 
   return {
     styleRegistry: new Map(),
@@ -181,5 +229,7 @@ export function createInitialState(
     reactNativeImportPath: undefined,
     functionComponentsNeedingColorScheme: new Set(),
     functionComponentsNeedingWindowDimensions: new Set(),
+    reactCompilerCompatible,
+    colorSchemeStyleKeys: new Map(),
   };
 }

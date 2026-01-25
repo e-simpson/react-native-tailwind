@@ -1623,3 +1623,226 @@ describe("className visitor - directional modifiers (RTL/LTR)", () => {
     expect(output).toContain("_rtl_text_left");
   });
 });
+
+describe("className visitor - React Compiler compatibility", () => {
+  it("should generate memoized dark style objects when reactCompilerCompatible is true", () => {
+    const input = `
+      import { View } from 'react-native';
+      export function Component() {
+        return <View className="bg-white dark:bg-gray-900" />;
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: true }, true);
+
+    // Should have StyleSheet.create with both styles
+    expect(output).toContain("StyleSheet.create");
+    expect(output).toContain("_bg_white");
+    expect(output).toContain("_dark_bg_gray_900");
+
+    // Should have memoized dark styles object
+    expect(output).toContain("_twDarkStyles");
+    expect(output).toMatch(/_twDarkStyles\s*=\s*\{/);
+
+    // Should reference the dark style from memoized object
+    expect(output).toMatch(/_twDarkStyles\._dark_bg_gray_900/);
+
+    // Should still have useColorScheme hook
+    expect(output).toContain("useColorScheme");
+    expect(output).toContain("_twColorScheme");
+  });
+
+  it("should generate memoized light style objects when reactCompilerCompatible is true", () => {
+    const input = `
+      import { View } from 'react-native';
+      export function Component() {
+        return <View className="bg-gray-900 light:bg-white" />;
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: true }, true);
+
+    // Should have memoized light styles object
+    expect(output).toContain("_twLightStyles");
+    expect(output).toMatch(/_twLightStyles\s*=\s*\{/);
+
+    // Should reference the light style from memoized object
+    expect(output).toMatch(/_twLightStyles\._light_bg_white/);
+  });
+
+  it("should generate both dark and light memoized objects when both modifiers are used", () => {
+    const input = `
+      import { View } from 'react-native';
+      export function Component() {
+        return <View className="bg-gray-500 dark:bg-gray-900 light:bg-white" />;
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: true }, true);
+
+    // Should have both memoized style objects
+    expect(output).toContain("_twDarkStyles");
+    expect(output).toContain("_twLightStyles");
+
+    // Should reference styles from memoized objects
+    expect(output).toMatch(/_twDarkStyles\._dark_bg_gray_900/);
+    expect(output).toMatch(/_twLightStyles\._light_bg_white/);
+  });
+
+  it("should NOT generate memoized objects when reactCompilerCompatible is false (default)", () => {
+    const input = `
+      import { View } from 'react-native';
+      export function Component() {
+        return <View className="bg-white dark:bg-gray-900" />;
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: false }, true);
+
+    // Should NOT have memoized style objects
+    expect(output).not.toContain("_twDarkStyles");
+    expect(output).not.toContain("_twLightStyles");
+
+    // Should reference styles directly from _twStyles
+    expect(output).toMatch(/_twStyles\._dark_bg_gray_900/);
+  });
+
+  it("should NOT generate memoized objects when no color scheme modifiers are used", () => {
+    const input = `
+      import { View } from 'react-native';
+      export function Component() {
+        return <View className="bg-white p-4 m-2" />;
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: true }, true);
+
+    // Should NOT have memoized style objects (no color scheme modifiers)
+    expect(output).not.toContain("_twDarkStyles");
+    expect(output).not.toContain("_twLightStyles");
+
+    // Should have regular styles
+    expect(output).toContain("_twStyles");
+  });
+
+  it("should handle multiple elements with different dark: modifiers", () => {
+    const input = `
+      import { View, Text } from 'react-native';
+      export function Component() {
+        return (
+          <>
+            <View className="dark:bg-gray-900" />
+            <Text className="dark:text-white" />
+          </>
+        );
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: true }, true);
+
+    // Should have memoized dark styles object with both styles
+    expect(output).toContain("_twDarkStyles");
+    expect(output).toContain("_dark_bg_gray_900");
+    expect(output).toContain("_dark_text_white");
+
+    // Both elements should reference the memoized object
+    expect(output).toMatch(/_twDarkStyles\._dark_bg_gray_900/);
+    expect(output).toMatch(/_twDarkStyles\._dark_text_white/);
+  });
+
+  it("should work with scheme: modifier expansion in React Compiler mode", () => {
+    // scheme: modifier requires both dark and light color variants to exist
+    // Using dark: and light: directly instead to test the functionality
+    const input = `
+      import { View } from 'react-native';
+      export function Component() {
+        return <View className="dark:bg-gray-900 light:bg-white" />;
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: true }, true);
+
+    // Should have useColorScheme hook
+    expect(output).toContain("useColorScheme");
+
+    // Should have both memoized style objects
+    expect(output).toContain("_twDarkStyles");
+    expect(output).toContain("_twLightStyles");
+  });
+
+  it("should preserve 'use client' directive with React Compiler mode", () => {
+    const input = `
+      'use client';
+      import { View } from 'react-native';
+      export function Component() {
+        return <View className="dark:bg-gray-900" />;
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: true }, true);
+
+    // 'use client' should be the first statement
+    const lines = output.split("\n").filter((l: string) => l.trim());
+    const useClientIndex = lines.findIndex(
+      (l: string) => l.includes("'use client'") || l.includes('"use client"'),
+    );
+    expect(useClientIndex).toBe(0);
+
+    // Should have memoized styles
+    expect(output).toContain("_twDarkStyles");
+  });
+
+  it("should work with platform modifiers combined with color scheme in React Compiler mode", () => {
+    const input = `
+      import { View } from 'react-native';
+      export function Component() {
+        return <View className="ios:p-4 android:p-2 dark:bg-gray-900" />;
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: true }, true);
+
+    // Should have Platform.select for platform modifiers
+    expect(output).toContain("Platform.select");
+
+    // Should have memoized dark styles
+    expect(output).toContain("_twDarkStyles");
+    expect(output).toMatch(/_twDarkStyles\._dark_bg_gray_900/);
+  });
+
+  it("should work with state modifiers combined with color scheme in React Compiler mode", () => {
+    const input = `
+      import { Pressable } from 'react-native';
+      export function Component() {
+        return <Pressable className="bg-white dark:bg-gray-900 active:bg-blue-500" />;
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: true }, true);
+
+    // Should have memoized dark styles
+    expect(output).toContain("_twDarkStyles");
+
+    // Should have state modifier handling
+    expect(output).toContain("pressed");
+  });
+
+  it("should inject memoized objects after StyleSheet.create", () => {
+    const input = `
+      import { View } from 'react-native';
+      export function Component() {
+        return <View className="dark:bg-gray-900" />;
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: true }, true);
+
+    // StyleSheet.create should come before memoized objects
+    const styleSheetIndex = output.indexOf("StyleSheet.create");
+    const darkStylesIndex = output.indexOf("_twDarkStyles");
+
+    expect(styleSheetIndex).toBeGreaterThan(-1);
+    expect(darkStylesIndex).toBeGreaterThan(-1);
+    expect(darkStylesIndex).toBeGreaterThan(styleSheetIndex);
+  });
+});

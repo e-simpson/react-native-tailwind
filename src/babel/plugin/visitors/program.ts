@@ -11,6 +11,7 @@ import {
   addStyleSheetImport,
   addWindowDimensionsImport,
   injectColorSchemeHook,
+  injectColorSchemeStyleObjects,
   injectI18nManagerVariable,
   injectStylesAtTop,
   injectWindowDimensionsHook,
@@ -112,5 +113,12 @@ export function programExit(
   // Only inject if we actually have styles to inject
   if (state.styleRegistry.size > 0) {
     injectStylesAtTop(path, state.styleRegistry, state.stylesIdentifier, t);
+
+    // In React Compiler mode, inject memoized color scheme style objects
+    // These are separate objects that reference the main StyleSheet styles,
+    // allowing React Compiler to properly track dependencies
+    if (state.reactCompilerCompatible && state.colorSchemeStyleKeys.size > 0) {
+      injectColorSchemeStyleObjects(path, state.colorSchemeStyleKeys, state.stylesIdentifier, t);
+    }
   }
 }

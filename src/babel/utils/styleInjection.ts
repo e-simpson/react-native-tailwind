@@ -5,6 +5,7 @@
 import type { NodePath } from "@babel/core";
 import type * as BabelTypes from "@babel/types";
 import type { StyleObject } from "../../types/core.js";
+import { DARK_STYLES_IDENTIFIER, LIGHT_STYLES_IDENTIFIER } from "./colorSchemeModifierProcessing.js";
 
 /**
  * Add StyleSheet import to the file or merge with existing react-native import
@@ -524,4 +525,132 @@ export function injectStylesAtTop(
 
   // Insert StyleSheet.create after imports and directives
   body.splice(insertIndex, 0, styleSheet);
+}
+
+/**
+ * Inject memoized color scheme style objects for React Compiler compatibility.
+ *
+ * This creates separate style objects for dark and light schemes that reference
+ * the main StyleSheet styles. React Compiler can properly track these as dependencies.
+ *
+ * Generated code:
+ * ```javascript
+ * const _twDarkStyles = {
+ *   _dark_bg_gray_900: _twStyles._dark_bg_gray_900,
+ *   _dark_text_white: _twStyles._dark_text_white,
+ * };
+ *
+ * const _twLightStyles = {
+ *   _light_bg_white: _twStyles._light_bg_white,
+ *   _light_text_black: _twStyles._light_text_black,
+ * };
+ * ```
+ *
+ * @param path - Program path
+ * @param colorSchemeStyleKeys - Map of scheme ('dark' | 'light') to set of style keys
+ * @param stylesIdentifier - Name of the main styles object (e.g., '_twStyles')
+ * @param t - Babel types
+ */
+export function injectColorSchemeStyleObjects(
+  path: NodePath<BabelTypes.Program>,
+  colorSchemeStyleKeys: Map<string, Set<string>>,
+  stylesIdentifier: string,
+  t: typeof BabelTypes,
+): void {
+  // Skip if no color scheme styles to inject
+  if (colorSchemeStyleKeys.size === 0) {
+    return;
+  }
+
+  const body = path.node.body;
+
+  // Find the index after StyleSheet.create (we need to inject after it)
+  let insertIndex = 0;
+  let foundStyleSheet = false;
+
+  for (let i = 0; i < body.length; i++) {
+    const statement = body[i];
+
+    // Skip directives ('use client', 'use strict', etc.)
+    if (t.isExpressionStatement(statement) && t.isStringLiteral(statement.expression)) {
+      insertIndex = i + 1;
+      continue;
+    }
+
+    // Skip imports
+    if (t.isImportDeclaration(statement)) {
+      insertIndex = i + 1;
+      continue;
+    }
+
+    // Check if this is the StyleSheet.create declaration
+    if (
+      t.isVariableDeclaration(statement) &&
+      statement.declarations.length > 0 &&
+      t.isVariableDeclarator(statement.declarations[0])
+    ) {
+      const declarator = statement.declarations[0];
+      if (t.isIdentifier(declarator.id) && declarator.id.name === stylesIdentifier) {
+        // Found StyleSheet.create, insert after it
+        insertIndex = i + 1;
+        foundStyleSheet = true;
+        break;
+      }
+    }
+
+    // If we haven't found StyleSheet yet, keep updating insertIndex
+    if (!foundStyleSheet) {
+      insertIndex = i + 1;
+    }
+  }
+
+  // Generate memoized style objects for each scheme
+  const declarations: BabelTypes.VariableDeclaration[] = [];
+
+  // Process dark styles
+  const darkKeys = colorSchemeStyleKeys.get("dark");
+  if (darkKeys && darkKeys.size > 0) {
+    const darkProperties: BabelTypes.ObjectProperty[] = [];
+    for (const styleKey of darkKeys) {
+      // Create: _dark_bg_gray_900: _twStyles._dark_bg_gray_900
+      darkProperties.push(
+        t.objectProperty(
+          t.identifier(styleKey),
+          t.memberExpression(t.identifier(stylesIdentifier), t.identifier(styleKey)),
+        ),
+      );
+    }
+
+    // Create: const _twDarkStyles = { ... }
+    const darkStylesDeclaration = t.variableDeclaration("const", [
+      t.variableDeclarator(t.identifier(DARK_STYLES_IDENTIFIER), t.objectExpression(darkProperties)),
+    ]);
+    declarations.push(darkStylesDeclaration);
+  }
+
+  // Process light styles
+  const lightKeys = colorSchemeStyleKeys.get("light");
+  if (lightKeys && lightKeys.size > 0) {
+    const lightProperties: BabelTypes.ObjectProperty[] = [];
+    for (const styleKey of lightKeys) {
+      // Create: _light_bg_white: _twStyles._light_bg_white
+      lightProperties.push(
+        t.objectProperty(
+          t.identifier(styleKey),
+          t.memberExpression(t.identifier(stylesIdentifier), t.identifier(styleKey)),
+        ),
+      );
+    }
+
+    // Create: const _twLightStyles = { ... }
+    const lightStylesDeclaration = t.variableDeclaration("const", [
+      t.variableDeclarator(t.identifier(LIGHT_STYLES_IDENTIFIER), t.objectExpression(lightProperties)),
+    ]);
+    declarations.push(lightStylesDeclaration);
+  }
+
+  // Insert all declarations after StyleSheet.create
+  for (let i = declarations.length - 1; i >= 0; i--) {
+    body.splice(insertIndex, 0, declarations[i]);
+  }
 }

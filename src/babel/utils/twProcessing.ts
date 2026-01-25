@@ -38,6 +38,9 @@ export interface TwProcessingState {
   // Directional support (for rtl:/ltr: modifiers)
   needsI18nManagerImport: boolean;
   i18nManagerVariableName: string;
+  // React Compiler compatibility
+  reactCompilerCompatible: boolean;
+  colorSchemeStyleKeys: Map<string, Set<string>>;
 }
 
 /**

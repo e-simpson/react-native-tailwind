@@ -21,6 +21,9 @@ export interface DynamicProcessingState {
   needsColorSchemeImport: boolean;
   colorSchemeVariableName: string;
   functionComponentsNeedingColorScheme: Set<NodePath<BabelTypes.Function>>;
+  // React Compiler compatibility
+  reactCompilerCompatible: boolean;
+  colorSchemeStyleKeys: Map<string, Set<string>>;
 }
 
 /**
