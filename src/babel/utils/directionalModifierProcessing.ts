@@ -32,8 +32,8 @@ export interface DirectionalModifierProcessingState {
  * @example
  * Input: [{ modifier: "rtl", baseClass: "mr-4" }, { modifier: "ltr", baseClass: "ml-4" }]
  * Output: [
- *   _twIsRTL && styles._rtl_mr_4,
- *   !_twIsRTL && styles._ltr_ml_4
+ *   _twIsRTL ? styles._rtl_mr_4 : null,
+ *   !_twIsRTL ? styles._ltr_ml_4 : null
  * ]
  */
 export function processDirectionalModifiers(
@@ -83,14 +83,15 @@ export function processDirectionalModifiers(
     state.styleRegistry.set(styleKey, styleObject);
 
     // Create conditional:
-    // - For rtl: _twIsRTL && styles._rtl_...
-    // - For ltr: !_twIsRTL && styles._ltr_...
+    // - For rtl: _twIsRTL ? styles._rtl_... : null
+    // - For ltr: !_twIsRTL ? styles._ltr_... : null
+    // Using ternary instead of && for React Compiler compatibility
     const rtlVariable = t.identifier(state.i18nManagerVariableName);
     const directionCheck = direction === "rtl" ? rtlVariable : t.unaryExpression("!", rtlVariable);
 
     const styleReference = t.memberExpression(t.identifier(state.stylesIdentifier), t.identifier(styleKey));
 
-    const conditionalExpression = t.logicalExpression("&&", directionCheck, styleReference);
+    const conditionalExpression = t.conditionalExpression(directionCheck, styleReference, t.nullLiteral());
 
     conditionalExpressions.push(conditionalExpression);
   }

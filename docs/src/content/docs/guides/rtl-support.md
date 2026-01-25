@@ -25,8 +25,8 @@ Logical properties automatically flip horizontally based on the layout direction
 </View>
 ```
 
-| Tailwind Class | React Native Property | RTL Behavior           |
-| -------------- | --------------------- | ---------------------- |
+| Tailwind Class | React Native Property | RTL Behavior              |
+| -------------- | --------------------- | ------------------------- |
 | `ms-*`         | `marginStart`         | Left in LTR, Right in RTL |
 | `me-*`         | `marginEnd`           | Right in LTR, Left in RTL |
 | `ps-*`         | `paddingStart`        | Left in LTR, Right in RTL |
@@ -41,8 +41,8 @@ Logical properties automatically flip horizontally based on the layout direction
 </View>
 ```
 
-| Tailwind Class | React Native Property | RTL Behavior           |
-| -------------- | --------------------- | ---------------------- |
+| Tailwind Class | React Native Property | RTL Behavior              |
+| -------------- | --------------------- | ------------------------- |
 | `start-*`      | `start`               | Left in LTR, Right in RTL |
 | `end-*`        | `end`                 | Right in LTR, Left in RTL |
 | `inset-s-*`    | `start`               | Left in LTR, Right in RTL |
@@ -57,8 +57,8 @@ Logical properties automatically flip horizontally based on the layout direction
 </View>
 ```
 
-| Tailwind Class | React Native Property | RTL Behavior           |
-| -------------- | --------------------- | ---------------------- |
+| Tailwind Class | React Native Property | RTL Behavior              |
+| -------------- | --------------------- | ------------------------- |
 | `border-s-*`   | `borderStartWidth`    | Left in LTR, Right in RTL |
 | `border-e-*`   | `borderEndWidth`      | Right in LTR, Left in RTL |
 
@@ -71,14 +71,14 @@ Logical properties automatically flip horizontally based on the layout direction
 </View>
 ```
 
-| Tailwind Class  | React Native Property     | Description                |
-| --------------- | ------------------------- | -------------------------- |
-| `rounded-s-*`   | Top-start + Bottom-start  | Start side corners         |
-| `rounded-e-*`   | Top-end + Bottom-end      | End side corners           |
-| `rounded-ss-*`  | `borderTopStartRadius`    | Top-start corner           |
-| `rounded-se-*`  | `borderTopEndRadius`      | Top-end corner             |
-| `rounded-es-*`  | `borderBottomStartRadius` | Bottom-start corner        |
-| `rounded-ee-*`  | `borderBottomEndRadius`   | Bottom-end corner          |
+| Tailwind Class | React Native Property     | Description         |
+| -------------- | ------------------------- | ------------------- |
+| `rounded-s-*`  | Top-start + Bottom-start  | Start side corners  |
+| `rounded-e-*`  | Top-end + Bottom-end      | End side corners    |
+| `rounded-ss-*` | `borderTopStartRadius`    | Top-start corner    |
+| `rounded-se-*` | `borderTopEndRadius`      | Top-end corner      |
+| `rounded-es-*` | `borderBottomStartRadius` | Bottom-start corner |
+| `rounded-ee-*` | `borderBottomEndRadius`   | Bottom-end corner   |
 
 ### Logical Text Alignment
 
@@ -94,12 +94,12 @@ React Native doesn't have `textAlign: 'start'/'end'` like CSS, but `text-start` 
 <Text className="ltr:text-right rtl:text-left">Aligned to end</Text>
 ```
 
-| Tailwind Class | Expands To | RTL Behavior |
-| -------------- | ---------- | ------------ |
+| Tailwind Class | Expands To                     | RTL Behavior       |
+| -------------- | ------------------------------ | ------------------ |
 | `text-start`   | `ltr:text-left rtl:text-right` | ✅ Flips correctly |
 | `text-end`     | `ltr:text-right rtl:text-left` | ✅ Flips correctly |
-| `text-left`    | (no expansion) | Static (no flip) |
-| `text-right`   | (no expansion) | Static (no flip) |
+| `text-left`    | (no expansion)                 | Static (no flip)   |
+| `text-right`   | (no expansion)                 | Static (no flip)   |
 
 :::tip[Automatic Expansion]
 Unlike web Tailwind where `text-start`/`text-end` rely on CSS logical properties, react-native-tailwind automatically expands these to `ltr:`/`rtl:` modifiers at compile time. This provides true RTL support with zero runtime overhead.
@@ -133,8 +133,8 @@ const _twIsRTL = I18nManager.isRTL;
 <View
   style={[
     _twStyles._bg_white_p_4_rounded_lg,
-    _twIsRTL && _twStyles._rtl_pr_8,
-    !_twIsRTL && _twStyles._ltr_pl_8,
+    _twIsRTL ? _twStyles._rtl_pr_8 : null,
+    !_twIsRTL ? _twStyles._ltr_pl_8 : null,
   ]}
 >
   <Text style={_twStyles._text_base}>Content with directional padding</Text>
@@ -204,16 +204,17 @@ function MyComponent() {
 ```
 
 The generated object includes:
+
 - `style` — Array with runtime conditionals
 - `rtlStyle` — RTL-specific styles for manual access
 - `ltrStyle` — LTR-specific styles for manual access
 
 ## Supported Modifiers
 
-| Modifier | Condition             | Description              |
-| -------- | --------------------- | ------------------------ |
-| `rtl:`   | `I18nManager.isRTL`   | Applied in RTL layouts   |
-| `ltr:`   | `!I18nManager.isRTL`  | Applied in LTR layouts   |
+| Modifier | Condition            | Description            |
+| -------- | -------------------- | ---------------------- |
+| `rtl:`   | `I18nManager.isRTL`  | Applied in RTL layouts |
+| `ltr:`   | `!I18nManager.isRTL` | Applied in LTR layouts |
 
 ## Key Features
 
@@ -226,13 +227,13 @@ The generated object includes:
 
 ## When to Use What
 
-| Scenario | Recommended Approach |
-| -------- | -------------------- |
-| Spacing that should flip | Logical properties (`ms-*`, `me-*`) |
-| Positioning that should flip | Logical properties (`start-*`, `end-*`) |
-| Completely different styles per direction | Directional modifiers (`rtl:`, `ltr:`) |
-| Icons that need rotation in RTL | `rtl:rotate-180` |
-| Flex direction reversal | `rtl:flex-row-reverse` |
+| Scenario                                  | Recommended Approach                    |
+| ----------------------------------------- | --------------------------------------- |
+| Spacing that should flip                  | Logical properties (`ms-*`, `me-*`)     |
+| Positioning that should flip              | Logical properties (`start-*`, `end-*`) |
+| Completely different styles per direction | Directional modifiers (`rtl:`, `ltr:`)  |
+| Icons that need rotation in RTL           | `rtl:rotate-180`                        |
+| Flex direction reversal                   | `rtl:flex-row-reverse`                  |
 
 ## Complete Example
 
@@ -244,10 +245,7 @@ export function RTLCard({ title, description, imageUrl, onPress }) {
   return (
     <View className="bg-white rounded-lg overflow-hidden shadow-md">
       {/* Image with directional margin */}
-      <Image
-        source={{ uri: imageUrl }}
-        className="w-full h-48"
-      />
+      <Image source={{ uri: imageUrl }} className="w-full h-48" />
 
       {/* Content with logical padding */}
       <View className="p-4 ps-6 pe-4">

@@ -16,7 +16,7 @@ module.exports = {
       {
         colorScheme: {
           importFrom: "@/hooks/useColorScheme", // Module to import from
-          importName: "useColorScheme",          // Hook name to import
+          importName: "useColorScheme", // Hook name to import
         },
       },
     ],
@@ -41,7 +41,7 @@ export const useColorScheme = (): ColorSchemeName => {
   const userTheme = profileStore.theme; // 'dark' | 'light' | 'auto'
 
   // Return user preference, or fall back to system if set to 'auto'
-  return userTheme === 'auto' ? systemColorScheme : userTheme;
+  return userTheme === "auto" ? systemColorScheme : userTheme;
 };
 ```
 
@@ -125,14 +125,14 @@ The plugin will:
 
 1. Import your custom hook: `import { useColorScheme } from "@/hooks/useColorScheme"`
 2. Inject it in components: `const _twColorScheme = useColorScheme();`
-3. Generate conditionals: `_twColorScheme === "dark" && styles._dark_bg_gray_900`
+3. Generate conditionals: `_twColorScheme === "dark" ? styles._dark_bg_gray_900 : null`
 
 ## Default Behavior
 
 Without custom configuration, the plugin uses React Native's built-in hook:
 
 ```typescript
-import { useColorScheme } from "react-native"
+import { useColorScheme } from "react-native";
 ```
 
 This works out of the box for basic system color scheme detection.

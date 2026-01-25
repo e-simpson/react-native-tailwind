@@ -1363,7 +1363,7 @@ describe("className visitor - directional modifiers (RTL/LTR)", () => {
     expect(output).toContain("_rtl_mr_4");
 
     // Should have conditional for RTL
-    expect(output).toMatch(/_twIsRTL\s*&&\s*_twStyles\._rtl_mr_4/);
+    expect(output).toMatch(/_twIsRTL\s*\?\s*_twStyles\._rtl_mr_4\s*:\s*null/);
   });
 
   it("should transform ltr: modifier with negated conditional", () => {
@@ -1383,7 +1383,7 @@ describe("className visitor - directional modifiers (RTL/LTR)", () => {
     expect(output).toContain("_ltr_ml_4");
 
     // Should have negated conditional for LTR (!_twIsRTL)
-    expect(output).toMatch(/!\s*_twIsRTL\s*&&\s*_twStyles\._ltr_ml_4/);
+    expect(output).toMatch(/!\s*_twIsRTL\s*\?\s*_twStyles\._ltr_ml_4\s*:\s*null/);
   });
 
   it("should combine rtl: and ltr: modifiers", () => {
@@ -1401,8 +1401,8 @@ describe("className visitor - directional modifiers (RTL/LTR)", () => {
     expect(output).toContain("_ltr_ml_4");
 
     // Should have both conditionals
-    expect(output).toMatch(/_twIsRTL\s*&&\s*_twStyles\._rtl_mr_4/);
-    expect(output).toMatch(/!\s*_twIsRTL\s*&&\s*_twStyles\._ltr_ml_4/);
+    expect(output).toMatch(/_twIsRTL\s*\?\s*_twStyles\._rtl_mr_4\s*:\s*null/);
+    expect(output).toMatch(/!\s*_twIsRTL\s*\?\s*_twStyles\._ltr_ml_4\s*:\s*null/);
   });
 
   it("should combine directional modifiers with base classes", () => {
@@ -1451,7 +1451,7 @@ describe("className visitor - directional modifiers (RTL/LTR)", () => {
     expect(output).toContain("Platform.select");
 
     // Should have RTL conditional
-    expect(output).toMatch(/_twIsRTL\s*&&/);
+    expect(output).toMatch(/_twIsRTL\s*\?/);
   });
 
   it("should not add I18nManager import if already present", () => {
@@ -1514,7 +1514,7 @@ describe("className visitor - directional modifiers (RTL/LTR)", () => {
 
     // Should have both conditionals
     expect(output).toMatch(/_twColorScheme\s*===\s*["']dark["']/);
-    expect(output).toMatch(/_twIsRTL\s*&&/);
+    expect(output).toMatch(/_twIsRTL\s*\?/);
   });
 
   it("should handle aliased I18nManager import", () => {
@@ -1601,8 +1601,8 @@ describe("className visitor - directional modifiers (RTL/LTR)", () => {
     expect(output).toContain("_rtl_text_right");
 
     // Should have conditionals for both
-    expect(output).toMatch(/_twIsRTL\s*&&/);
-    expect(output).toMatch(/!\s*_twIsRTL\s*&&/);
+    expect(output).toMatch(/_twIsRTL\s*\?/);
+    expect(output).toMatch(/!\s*_twIsRTL\s*\?/);
   });
 
   it("should expand text-end to directional modifiers", () => {

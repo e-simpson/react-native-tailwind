@@ -254,10 +254,10 @@ export function jsxAttributeVisitor(
           state.styleRegistry.set(modifierStyleKey, modifierStyleObject);
 
           const stateProperty = getStatePropertyForModifier(modifierType);
-          const conditionalExpression = t.logicalExpression(
-            "&&",
+          const conditionalExpression = t.conditionalExpression(
             t.identifier(stateProperty),
             t.memberExpression(t.identifier(state.stylesIdentifier), t.identifier(modifierStyleKey)),
+            t.nullLiteral(),
           );
 
           styleArrayElements.push(conditionalExpression);

@@ -104,10 +104,7 @@ function MyComponent() {
   const _twColorScheme = useColorScheme();
 
   const textStyles = {
-    style: [
-      styles._text_gray_900,
-      _twColorScheme === "dark" && styles._dark_text_gray_100,
-    ],
+    style: [styles._text_gray_900, _twColorScheme === "dark" ? styles._dark_text_gray_100 : null],
     darkStyle: styles._dark_text_gray_100, // Also available for manual processing
   };
 
@@ -117,9 +114,10 @@ function MyComponent() {
 
 :::note
 Both `style` (with runtime conditionals) and `darkStyle`/`lightStyle` properties are generated. This allows:
+
 - **Automatic behavior**: Use `textStyles.style` for automatic dark/light switching
 - **Manual control**: Access `textStyles.darkStyle` or `textStyles.lightStyle` for custom logic
-:::
+  :::
 
 ## With Platform Modifiers
 
@@ -173,9 +171,11 @@ function MyComponent() {
   return <View style={styles.style} />;
 }
 ```
+
 :::
 
 :::caution[Cannot use in nested functions]
+
 ```tsx
 function MyComponent() {
   const createStyles = () => {
@@ -187,6 +187,7 @@ function MyComponent() {
   const styles = tw`bg-white dark:bg-gray-900`;
 }
 ```
+
 :::
 
 ## Compatibility with Modifiers
@@ -200,7 +201,7 @@ const buttonStyles = tw`bg-white dark:bg-gray-900 active:bg-blue-500`;
 {
   style: [
     styles._bg_white,
-    _twColorScheme === "dark" && styles._dark_bg_gray_900
+    _twColorScheme === "dark" ? styles._dark_bg_gray_900 : null
   ],
   activeStyle: styles._active_bg_blue_500  // Separate property
 }
@@ -247,17 +248,10 @@ export function StyledApp() {
 
         <View style={cardStyles.style}>
           <Text style={tw`text-lg font-semibold mb-2`.style}>Card Title</Text>
-          <Text style={tw`text-gray-600 dark:text-gray-300`.style}>
-            Card description
-          </Text>
+          <Text style={tw`text-gray-600 dark:text-gray-300`.style}>Card description</Text>
         </View>
 
-        <Pressable
-          style={(state) => [
-            buttonStyles.style,
-            state.pressed && buttonStyles.activeStyle,
-          ]}
-        >
+        <Pressable style={(state) => [buttonStyles.style, state.pressed && buttonStyles.activeStyle]}>
           <Text style={tw`text-white font-semibold`.style}>Action Button</Text>
         </Pressable>
       </View>

@@ -32,8 +32,8 @@ export interface ColorSchemeModifierProcessingState {
  * @example
  * Input: [{ modifier: "dark", baseClass: "bg-gray-900" }, { modifier: "light", baseClass: "bg-white" }]
  * Output: [
- *   _twColorScheme === 'dark' && styles._dark_bg_gray_900,
- *   _twColorScheme === 'light' && styles._light_bg_white
+ *   _twColorScheme === 'dark' ? styles._dark_bg_gray_900 : null,
+ *   _twColorScheme === 'light' ? styles._light_bg_white : null
  * ]
  */
 export function processColorSchemeModifiers(
@@ -82,7 +82,8 @@ export function processColorSchemeModifiers(
     // Register style in the registry
     state.styleRegistry.set(styleKey, styleObject);
 
-    // Create conditional: _twColorScheme === 'dark' && styles._dark_bg_gray_900
+    // Create conditional: _twColorScheme === 'dark' ? styles._dark_bg_gray_900 : null
+    // Using ternary instead of && for React Compiler compatibility
     const colorSchemeCheck = t.binaryExpression(
       "===",
       t.identifier(state.colorSchemeVariableName),
@@ -91,7 +92,7 @@ export function processColorSchemeModifiers(
 
     const styleReference = t.memberExpression(t.identifier(state.stylesIdentifier), t.identifier(styleKey));
 
-    const conditionalExpression = t.logicalExpression("&&", colorSchemeCheck, styleReference);
+    const conditionalExpression = t.conditionalExpression(colorSchemeCheck, styleReference, t.nullLiteral());
 
     conditionalExpressions.push(conditionalExpression);
   }

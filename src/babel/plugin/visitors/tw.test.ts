@@ -642,7 +642,7 @@ describe("tw visitor - directional modifiers (RTL/LTR)", () => {
     // Should have style array with conditional
     expect(output).toContain("style:");
     expect(output).toContain("_twStyles._p_4");
-    expect(output).toMatch(/_twIsRTL\s*&&\s*_twStyles\._rtl_mr_4/);
+    expect(output).toMatch(/_twIsRTL\s*\?\s*_twStyles\._rtl_mr_4\s*:\s*null/);
 
     // Should have rtlStyle property
     expect(output).toContain("rtlStyle:");
@@ -665,7 +665,7 @@ describe("tw visitor - directional modifiers (RTL/LTR)", () => {
     expect(output).toContain("I18nManager");
 
     // Should have negated conditional for LTR (!_twIsRTL)
-    expect(output).toMatch(/!\s*_twIsRTL\s*&&\s*_twStyles\._ltr_ml_4/);
+    expect(output).toMatch(/!\s*_twIsRTL\s*\?\s*_twStyles\._ltr_ml_4\s*:\s*null/);
 
     // Should have ltrStyle property
     expect(output).toContain("ltrStyle:");
@@ -684,8 +684,8 @@ describe("tw visitor - directional modifiers (RTL/LTR)", () => {
     const output = transform(input);
 
     // Should have both conditionals
-    expect(output).toMatch(/_twIsRTL\s*&&\s*_twStyles\._rtl_mr_4/);
-    expect(output).toMatch(/!\s*_twIsRTL\s*&&\s*_twStyles\._ltr_ml_4/);
+    expect(output).toMatch(/_twIsRTL\s*\?\s*_twStyles\._rtl_mr_4\s*:\s*null/);
+    expect(output).toMatch(/!\s*_twIsRTL\s*\?\s*_twStyles\._ltr_ml_4\s*:\s*null/);
 
     // Should have both style properties
     expect(output).toContain("rtlStyle:");
@@ -712,7 +712,7 @@ describe("tw visitor - directional modifiers (RTL/LTR)", () => {
 
     // Should have both modifiers in style array
     expect(output).toContain("Platform.select");
-    expect(output).toMatch(/_twIsRTL\s*&&/);
+    expect(output).toMatch(/_twIsRTL\s*\?/);
 
     // Should have iosStyle and rtlStyle properties
     expect(output).toContain("iosStyle:");
@@ -735,7 +735,7 @@ describe("tw visitor - directional modifiers (RTL/LTR)", () => {
     expect(output).toContain("I18nManager");
 
     // Should have directional conditional
-    expect(output).toMatch(/_twIsRTL\s*&&/);
+    expect(output).toMatch(/_twIsRTL\s*\?/);
 
     // Should have activeStyle property
     expect(output).toContain("activeStyle:");
@@ -761,8 +761,8 @@ describe("tw visitor - directional modifiers (RTL/LTR)", () => {
     expect(output).toContain("I18nManager");
 
     // Should have both conditionals
-    expect(output).toMatch(/_twIsRTL\s*&&/);
-    expect(output).toMatch(/!\s*_twIsRTL\s*&&/);
+    expect(output).toMatch(/_twIsRTL\s*\?/);
+    expect(output).toMatch(/!\s*_twIsRTL\s*\?/);
 
     // Should have both style properties
     expect(output).toContain("rtlStyle:");

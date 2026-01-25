@@ -43,7 +43,7 @@ export interface TwProcessingState {
 /**
  * Process tw`...` or twStyle('...') call and replace with TwStyle object
  * Generates: { style: styles._base, activeStyle: styles._active, ... }
- * When color-scheme modifiers are present, generates: { style: [base, _twColorScheme === 'dark' && dark, ...] }
+ * When color-scheme modifiers are present, generates: { style: [base, _twColorScheme === 'dark' ? dark : null, ...] }
  * When platform modifiers are present, generates: { style: [base, Platform.select({ ios: ..., android: ... })] }
  */
 export function processTwCall(
@@ -151,7 +151,7 @@ export function processTwCall(
       t,
     );
 
-    // Build style array: [baseStyle, _twColorScheme === 'dark' && darkStyle, ...]
+    // Build style array: [baseStyle, _twColorScheme === 'dark' ? darkStyle : null, ...]
     const styleArrayElements: BabelTypes.Expression[] = [];
 
     // Add base style if present
