@@ -1653,6 +1653,24 @@ function parseArbitrarySize(value) {
 }
 function parseSizing(cls, customSpacing) {
   const sizeMap = customSpacing ? { ...SIZE_SCALE, ...customSpacing } : SIZE_SCALE;
+  if (cls.startsWith("size-")) {
+    const sizeKey = cls.substring(5);
+    const arbitrarySize = parseArbitrarySize(sizeKey);
+    if (arbitrarySize !== null) {
+      return { width: arbitrarySize, height: arbitrarySize };
+    }
+    const percentage = SIZE_PERCENTAGES[sizeKey];
+    if (percentage) {
+      return { width: percentage, height: percentage };
+    }
+    const numericSize = sizeMap[sizeKey];
+    if (numericSize !== void 0) {
+      return { width: numericSize, height: numericSize };
+    }
+    if (sizeKey === "auto") {
+      return { width: "auto", height: "auto" };
+    }
+  }
   if (cls.startsWith("w-")) {
     const sizeKey = cls.substring(2);
     if (sizeKey === "screen") {
