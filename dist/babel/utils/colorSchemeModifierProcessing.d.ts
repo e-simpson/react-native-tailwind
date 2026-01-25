@@ -18,6 +18,7 @@ export interface ColorSchemeModifierProcessingState {
 }
 export declare const DARK_STYLES_IDENTIFIER = "_twDarkStyles";
 export declare const LIGHT_STYLES_IDENTIFIER = "_twLightStyles";
+export declare const COLOR_SCHEME_STYLES_IDENTIFIER = "_twColorSchemeStyles";
 /**
  * Process color scheme modifiers and generate conditional style expressions
  *
@@ -36,11 +37,12 @@ export declare const LIGHT_STYLES_IDENTIFIER = "_twLightStyles";
  *   _twColorScheme === 'light' && _twStyles._light_bg_white
  * ]
  *
- * React Compiler mode:
+ * React Compiler mode (with useMemo):
  * Input: [{ modifier: "dark", baseClass: "bg-gray-900" }, { modifier: "light", baseClass: "bg-white" }]
  * Output: [
- *   _twColorScheme === 'dark' && _twDarkStyles._dark_bg_gray_900,
- *   _twColorScheme === 'light' && _twLightStyles._light_bg_white
+ *   _twColorSchemeStyles._dark_bg_gray_900,
+ *   _twColorSchemeStyles._light_bg_white
  * ]
+ * (The useMemo hook handles the conditional logic based on _twColorScheme)
  */
 export declare function processColorSchemeModifiers(colorSchemeModifiers: ParsedModifier[], state: ColorSchemeModifierProcessingState, parseClassName: (className: string, customTheme?: CustomTheme) => StyleObject, generateStyleKey: (className: string) => string, t: typeof BabelTypes): BabelTypes.Expression[];

@@ -1625,7 +1625,7 @@ describe("className visitor - directional modifiers (RTL/LTR)", () => {
 });
 
 describe("className visitor - React Compiler compatibility", () => {
-  it("should generate memoized dark style objects when reactCompilerCompatible is true", () => {
+  it("should generate useMemo hook for dark styles when reactCompilerCompatible is true", () => {
     const input = `
       import { View } from 'react-native';
       export function Component() {
@@ -1640,19 +1640,25 @@ describe("className visitor - React Compiler compatibility", () => {
     expect(output).toContain("_bg_white");
     expect(output).toContain("_dark_bg_gray_900");
 
-    // Should have memoized dark styles object
-    expect(output).toContain("_twDarkStyles");
-    expect(output).toMatch(/_twDarkStyles\s*=\s*\{/);
+    // Should have useMemo import from react
+    expect(output).toContain('import { useMemo } from "react"');
+
+    // Should have memoized color scheme styles object with useMemo
+    expect(output).toContain("_twColorSchemeStyles");
+    expect(output).toContain("useMemo");
 
     // Should reference the dark style from memoized object
-    expect(output).toMatch(/_twDarkStyles\._dark_bg_gray_900/);
+    expect(output).toMatch(/_twColorSchemeStyles\._dark_bg_gray_900/);
 
     // Should still have useColorScheme hook
     expect(output).toContain("useColorScheme");
     expect(output).toContain("_twColorScheme");
+
+    // The useMemo should have _twColorScheme as dependency
+    expect(output).toMatch(/\[_twColorScheme\]/);
   });
 
-  it("should generate memoized light style objects when reactCompilerCompatible is true", () => {
+  it("should generate useMemo hook for light styles when reactCompilerCompatible is true", () => {
     const input = `
       import { View } from 'react-native';
       export function Component() {
@@ -1662,15 +1668,18 @@ describe("className visitor - React Compiler compatibility", () => {
 
     const output = transform(input, { reactCompilerCompatible: true }, true);
 
-    // Should have memoized light styles object
-    expect(output).toContain("_twLightStyles");
-    expect(output).toMatch(/_twLightStyles\s*=\s*\{/);
+    // Should have memoized color scheme styles object with useMemo
+    expect(output).toContain("_twColorSchemeStyles");
+    expect(output).toContain("useMemo");
 
     // Should reference the light style from memoized object
-    expect(output).toMatch(/_twLightStyles\._light_bg_white/);
+    expect(output).toMatch(/_twColorSchemeStyles\._light_bg_white/);
+
+    // The useMemo callback should check for light scheme
+    expect(output).toContain('_twColorScheme === "light"');
   });
 
-  it("should generate both dark and light memoized objects when both modifiers are used", () => {
+  it("should generate useMemo with both dark and light styles when both modifiers are used", () => {
     const input = `
       import { View } from 'react-native';
       export function Component() {
@@ -1680,16 +1689,20 @@ describe("className visitor - React Compiler compatibility", () => {
 
     const output = transform(input, { reactCompilerCompatible: true }, true);
 
-    // Should have both memoized style objects
-    expect(output).toContain("_twDarkStyles");
-    expect(output).toContain("_twLightStyles");
+    // Should have single memoized color scheme styles object
+    expect(output).toContain("_twColorSchemeStyles");
+    expect(output).toContain("useMemo");
 
-    // Should reference styles from memoized objects
-    expect(output).toMatch(/_twDarkStyles\._dark_bg_gray_900/);
-    expect(output).toMatch(/_twLightStyles\._light_bg_white/);
+    // Should reference styles from memoized object
+    expect(output).toMatch(/_twColorSchemeStyles\._dark_bg_gray_900/);
+    expect(output).toMatch(/_twColorSchemeStyles\._light_bg_white/);
+
+    // The useMemo callback should check for both schemes
+    expect(output).toContain('_twColorScheme === "dark"');
+    expect(output).toContain('_twColorScheme === "light"');
   });
 
-  it("should NOT generate memoized objects when reactCompilerCompatible is false (default)", () => {
+  it("should NOT generate useMemo when reactCompilerCompatible is false (default)", () => {
     const input = `
       import { View } from 'react-native';
       export function Component() {
@@ -1700,14 +1713,14 @@ describe("className visitor - React Compiler compatibility", () => {
     const output = transform(input, { reactCompilerCompatible: false }, true);
 
     // Should NOT have memoized style objects
-    expect(output).not.toContain("_twDarkStyles");
-    expect(output).not.toContain("_twLightStyles");
+    expect(output).not.toContain("_twColorSchemeStyles");
+    expect(output).not.toContain("useMemo");
 
-    // Should reference styles directly from _twStyles
-    expect(output).toMatch(/_twStyles\._dark_bg_gray_900/);
+    // Should reference styles directly from _twStyles with conditional
+    expect(output).toMatch(/_twColorScheme === ['"]dark['"] && _twStyles\._dark_bg_gray_900/);
   });
 
-  it("should NOT generate memoized objects when no color scheme modifiers are used", () => {
+  it("should NOT generate useMemo when no color scheme modifiers are used", () => {
     const input = `
       import { View } from 'react-native';
       export function Component() {
@@ -1718,8 +1731,8 @@ describe("className visitor - React Compiler compatibility", () => {
     const output = transform(input, { reactCompilerCompatible: true }, true);
 
     // Should NOT have memoized style objects (no color scheme modifiers)
-    expect(output).not.toContain("_twDarkStyles");
-    expect(output).not.toContain("_twLightStyles");
+    expect(output).not.toContain("_twColorSchemeStyles");
+    expect(output).not.toContain("useMemo");
 
     // Should have regular styles
     expect(output).toContain("_twStyles");
@@ -1740,14 +1753,14 @@ describe("className visitor - React Compiler compatibility", () => {
 
     const output = transform(input, { reactCompilerCompatible: true }, true);
 
-    // Should have memoized dark styles object with both styles
-    expect(output).toContain("_twDarkStyles");
+    // Should have memoized color scheme styles object with both styles
+    expect(output).toContain("_twColorSchemeStyles");
     expect(output).toContain("_dark_bg_gray_900");
     expect(output).toContain("_dark_text_white");
 
     // Both elements should reference the memoized object
-    expect(output).toMatch(/_twDarkStyles\._dark_bg_gray_900/);
-    expect(output).toMatch(/_twDarkStyles\._dark_text_white/);
+    expect(output).toMatch(/_twColorSchemeStyles\._dark_bg_gray_900/);
+    expect(output).toMatch(/_twColorSchemeStyles\._dark_text_white/);
   });
 
   it("should work with scheme: modifier expansion in React Compiler mode", () => {
@@ -1765,9 +1778,13 @@ describe("className visitor - React Compiler compatibility", () => {
     // Should have useColorScheme hook
     expect(output).toContain("useColorScheme");
 
-    // Should have both memoized style objects
-    expect(output).toContain("_twDarkStyles");
-    expect(output).toContain("_twLightStyles");
+    // Should have memoized color scheme styles with useMemo
+    expect(output).toContain("_twColorSchemeStyles");
+    expect(output).toContain("useMemo");
+
+    // Should have both dark and light conditionals in useMemo
+    expect(output).toContain('_twColorScheme === "dark"');
+    expect(output).toContain('_twColorScheme === "light"');
   });
 
   it("should preserve 'use client' directive with React Compiler mode", () => {
@@ -1788,8 +1805,9 @@ describe("className visitor - React Compiler compatibility", () => {
     );
     expect(useClientIndex).toBe(0);
 
-    // Should have memoized styles
-    expect(output).toContain("_twDarkStyles");
+    // Should have memoized styles with useMemo
+    expect(output).toContain("_twColorSchemeStyles");
+    expect(output).toContain("useMemo");
   });
 
   it("should work with platform modifiers combined with color scheme in React Compiler mode", () => {
@@ -1805,9 +1823,9 @@ describe("className visitor - React Compiler compatibility", () => {
     // Should have Platform.select for platform modifiers
     expect(output).toContain("Platform.select");
 
-    // Should have memoized dark styles
-    expect(output).toContain("_twDarkStyles");
-    expect(output).toMatch(/_twDarkStyles\._dark_bg_gray_900/);
+    // Should have memoized color scheme styles
+    expect(output).toContain("_twColorSchemeStyles");
+    expect(output).toMatch(/_twColorSchemeStyles\._dark_bg_gray_900/);
   });
 
   it("should work with state modifiers combined with color scheme in React Compiler mode", () => {
@@ -1820,14 +1838,14 @@ describe("className visitor - React Compiler compatibility", () => {
 
     const output = transform(input, { reactCompilerCompatible: true }, true);
 
-    // Should have memoized dark styles
-    expect(output).toContain("_twDarkStyles");
+    // Should have memoized color scheme styles
+    expect(output).toContain("_twColorSchemeStyles");
 
     // Should have state modifier handling
     expect(output).toContain("pressed");
   });
 
-  it("should inject memoized objects after StyleSheet.create", () => {
+  it("should inject useMemo inside component after useColorScheme hook", () => {
     const input = `
       import { View } from 'react-native';
       export function Component() {
@@ -1837,12 +1855,31 @@ describe("className visitor - React Compiler compatibility", () => {
 
     const output = transform(input, { reactCompilerCompatible: true }, true);
 
-    // StyleSheet.create should come before memoized objects
-    const styleSheetIndex = output.indexOf("StyleSheet.create");
-    const darkStylesIndex = output.indexOf("_twDarkStyles");
+    // useColorScheme() call should come before useMemo() call
+    // Use "useMemo(" to find the actual call, not the import
+    const useColorSchemeIndex = output.indexOf("useColorScheme()");
+    const useMemoCallIndex = output.indexOf("useMemo(");
 
-    expect(styleSheetIndex).toBeGreaterThan(-1);
-    expect(darkStylesIndex).toBeGreaterThan(-1);
-    expect(darkStylesIndex).toBeGreaterThan(styleSheetIndex);
+    expect(useColorSchemeIndex).toBeGreaterThan(-1);
+    expect(useMemoCallIndex).toBeGreaterThan(-1);
+    expect(useMemoCallIndex).toBeGreaterThan(useColorSchemeIndex);
+  });
+
+  it("should generate correct useMemo structure with dependency array", () => {
+    const input = `
+      import { View } from 'react-native';
+      export function Component() {
+        return <View className="dark:bg-gray-900" />;
+      }
+    `;
+
+    const output = transform(input, { reactCompilerCompatible: true }, true);
+
+    // Should have useMemo with arrow function and dependency array
+    expect(output).toMatch(/useMemo\(\(\) => \(\{/);
+    expect(output).toMatch(/\}\), \[_twColorScheme\]\)/);
+
+    // The conditional should return the style or undefined
+    expect(output).toContain('_twColorScheme === "dark" ? _twStyles._dark_bg_gray_900 : undefined');
   });
 });

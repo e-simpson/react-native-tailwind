@@ -63,7 +63,38 @@ export declare function injectWindowDimensionsHook(functionPath: NodePath<BabelT
  * This ensures the styles object is defined before any code that references it
  */
 export declare function injectStylesAtTop(path: NodePath<BabelTypes.Program>, styleRegistry: Map<string, StyleObject>, stylesIdentifier: string, t: typeof BabelTypes): void;
+export declare const COLOR_SCHEME_STYLES_IDENTIFIER = "_twColorSchemeStyles";
 /**
+ * Inject useMemo hook for color scheme styles inside a function component.
+ *
+ * This creates a memoized object that computes the active color scheme styles
+ * based on the current color scheme. React Compiler can properly track the
+ * dependency on _twColorScheme.
+ *
+ * Generated code:
+ * ```javascript
+ * const _twColorSchemeStyles = useMemo(() => ({
+ *   _dark_bg_gray_900: _twColorScheme === 'dark' ? _twStyles._dark_bg_gray_900 : undefined,
+ *   _light_bg_white: _twColorScheme === 'light' ? _twStyles._light_bg_white : undefined,
+ * }), [_twColorScheme]);
+ * ```
+ *
+ * @param functionPath - Path to the function component
+ * @param colorSchemeStyleKeys - Map of scheme ('dark' | 'light') to set of style keys
+ * @param colorSchemeVariableName - Name of the color scheme variable (e.g., '_twColorScheme')
+ * @param stylesIdentifier - Name of the main styles object (e.g., '_twStyles')
+ * @param t - Babel types
+ * @returns true if hook was injected, false if already exists or no styles to inject
+ */
+export declare function injectColorSchemeStylesMemo(functionPath: NodePath<BabelTypes.Function>, colorSchemeStyleKeys: Map<string, Set<string>>, colorSchemeVariableName: string, stylesIdentifier: string, t: typeof BabelTypes): boolean;
+/**
+ * Add useMemo import to the file or merge with existing react import
+ */
+export declare function addUseMemoImport(path: NodePath<BabelTypes.Program>, t: typeof BabelTypes): void;
+/**
+ * @deprecated Use injectColorSchemeStylesMemo instead for React Compiler compatibility.
+ * This function injects static style objects at module level which doesn't work with React Compiler.
+ *
  * Inject memoized color scheme style objects for React Compiler compatibility.
  *
  * This creates separate style objects for dark and light schemes that reference

@@ -2538,8 +2538,7 @@ function splitStaticAndRuntimeStyles(styleObject) {
 }
 
 // src/babel/utils/colorSchemeModifierProcessing.ts
-var DARK_STYLES_IDENTIFIER = "_twDarkStyles";
-var LIGHT_STYLES_IDENTIFIER = "_twLightStyles";
+var COLOR_SCHEME_STYLES_IDENTIFIER = "_twColorSchemeStyles";
 function processColorSchemeModifiers(colorSchemeModifiers, state, parseClassName2, generateStyleKey2, t) {
   state.needsColorSchemeImport = true;
   const modifiersByScheme = /* @__PURE__ */ new Map();
@@ -2571,16 +2570,21 @@ function processColorSchemeModifiers(colorSchemeModifiers, state, parseClassName
         state.colorSchemeStyleKeys.set(scheme, schemeKeys);
       }
       schemeKeys.add(styleKey);
+      const styleReference = t.memberExpression(
+        t.identifier(COLOR_SCHEME_STYLES_IDENTIFIER),
+        t.identifier(styleKey)
+      );
+      conditionalExpressions.push(styleReference);
+    } else {
+      const colorSchemeCheck = t.binaryExpression(
+        "===",
+        t.identifier(state.colorSchemeVariableName),
+        t.stringLiteral(scheme)
+      );
+      const styleReference = t.memberExpression(t.identifier(state.stylesIdentifier), t.identifier(styleKey));
+      const conditionalExpression = t.logicalExpression("&&", colorSchemeCheck, styleReference);
+      conditionalExpressions.push(conditionalExpression);
     }
-    const colorSchemeCheck = t.binaryExpression(
-      "===",
-      t.identifier(state.colorSchemeVariableName),
-      t.stringLiteral(scheme)
-    );
-    const stylesIdentifier = state.reactCompilerCompatible ? scheme === "dark" ? DARK_STYLES_IDENTIFIER : LIGHT_STYLES_IDENTIFIER : state.stylesIdentifier;
-    const styleReference = t.memberExpression(t.identifier(stylesIdentifier), t.identifier(styleKey));
-    const conditionalExpression = t.logicalExpression("&&", colorSchemeCheck, styleReference);
-    conditionalExpressions.push(conditionalExpression);
   }
   return conditionalExpressions;
 }
@@ -4011,70 +4015,115 @@ function injectStylesAtTop(path2, styleRegistry, stylesIdentifier, t) {
   }
   body.splice(insertIndex, 0, styleSheet);
 }
-function injectColorSchemeStyleObjects(path2, colorSchemeStyleKeys, stylesIdentifier, t) {
+var COLOR_SCHEME_STYLES_IDENTIFIER2 = "_twColorSchemeStyles";
+function injectColorSchemeStylesMemo(functionPath, colorSchemeStyleKeys, colorSchemeVariableName, stylesIdentifier, t) {
   if (colorSchemeStyleKeys.size === 0) {
-    return;
+    return false;
   }
-  const body = path2.node.body;
-  let insertIndex = 0;
-  let foundStyleSheet = false;
-  for (let i = 0; i < body.length; i++) {
-    const statement = body[i];
-    if (t.isExpressionStatement(statement) && t.isStringLiteral(statement.expression)) {
-      insertIndex = i + 1;
-      continue;
+  let body = functionPath.node.body;
+  if (!t.isBlockStatement(body)) {
+    if (t.isArrowFunctionExpression(functionPath.node) && t.isExpression(body)) {
+      const returnStatement = t.returnStatement(body);
+      const blockStatement = t.blockStatement([returnStatement]);
+      functionPath.node.body = blockStatement;
+      body = blockStatement;
+    } else {
+      return false;
     }
-    if (t.isImportDeclaration(statement)) {
-      insertIndex = i + 1;
-      continue;
-    }
+  }
+  const hasHook = body.body.some((statement) => {
     if (t.isVariableDeclaration(statement) && statement.declarations.length > 0 && t.isVariableDeclarator(statement.declarations[0])) {
       const declarator = statement.declarations[0];
-      if (t.isIdentifier(declarator.id) && declarator.id.name === stylesIdentifier) {
+      return t.isIdentifier(declarator.id) && declarator.id.name === COLOR_SCHEME_STYLES_IDENTIFIER2;
+    }
+    return false;
+  });
+  if (hasHook) {
+    return false;
+  }
+  const objectProperties = [];
+  const darkKeys = colorSchemeStyleKeys.get("dark");
+  if (darkKeys) {
+    for (const styleKey of darkKeys) {
+      objectProperties.push(
+        t.objectProperty(
+          t.identifier(styleKey),
+          t.conditionalExpression(
+            t.binaryExpression("===", t.identifier(colorSchemeVariableName), t.stringLiteral("dark")),
+            t.memberExpression(t.identifier(stylesIdentifier), t.identifier(styleKey)),
+            t.identifier("undefined")
+          )
+        )
+      );
+    }
+  }
+  const lightKeys = colorSchemeStyleKeys.get("light");
+  if (lightKeys) {
+    for (const styleKey of lightKeys) {
+      objectProperties.push(
+        t.objectProperty(
+          t.identifier(styleKey),
+          t.conditionalExpression(
+            t.binaryExpression("===", t.identifier(colorSchemeVariableName), t.stringLiteral("light")),
+            t.memberExpression(t.identifier(stylesIdentifier), t.identifier(styleKey)),
+            t.identifier("undefined")
+          )
+        )
+      );
+    }
+  }
+  const memoCallback = t.arrowFunctionExpression([], t.objectExpression(objectProperties));
+  const dependencyArray = t.arrayExpression([t.identifier(colorSchemeVariableName)]);
+  const useMemoCall = t.variableDeclaration("const", [
+    t.variableDeclarator(
+      t.identifier(COLOR_SCHEME_STYLES_IDENTIFIER2),
+      t.callExpression(t.identifier("useMemo"), [memoCallback, dependencyArray])
+    )
+  ]);
+  let insertIndex = 0;
+  for (let i = 0; i < body.body.length; i++) {
+    const statement = body.body[i];
+    if (t.isVariableDeclaration(statement) && statement.declarations.length > 0 && t.isVariableDeclarator(statement.declarations[0])) {
+      const declarator = statement.declarations[0];
+      if (t.isIdentifier(declarator.id) && declarator.id.name === colorSchemeVariableName) {
         insertIndex = i + 1;
-        foundStyleSheet = true;
         break;
       }
     }
-    if (!foundStyleSheet) {
-      insertIndex = i + 1;
+    insertIndex = i + 1;
+  }
+  body.body.splice(insertIndex, 0, useMemoCall);
+  return true;
+}
+function addUseMemoImport(path2, t) {
+  const body = path2.node.body;
+  let existingReactImport = null;
+  for (const statement of body) {
+    if (t.isImportDeclaration(statement) && statement.source.value === "react") {
+      if (statement.importKind === "type") {
+        continue;
+      }
+      const hasNamespaceImport = statement.specifiers.some((spec) => t.isImportNamespaceSpecifier(spec));
+      if (hasNamespaceImport) {
+        continue;
+      }
+      existingReactImport = statement;
+      break;
     }
   }
-  const declarations = [];
-  const darkKeys = colorSchemeStyleKeys.get("dark");
-  if (darkKeys && darkKeys.size > 0) {
-    const darkProperties = [];
-    for (const styleKey of darkKeys) {
-      darkProperties.push(
-        t.objectProperty(
-          t.identifier(styleKey),
-          t.memberExpression(t.identifier(stylesIdentifier), t.identifier(styleKey))
-        )
-      );
+  if (existingReactImport) {
+    const hasUseMemo = existingReactImport.specifiers.some(
+      (spec) => t.isImportSpecifier(spec) && spec.imported.type === "Identifier" && spec.imported.name === "useMemo"
+    );
+    if (!hasUseMemo) {
+      existingReactImport.specifiers.push(t.importSpecifier(t.identifier("useMemo"), t.identifier("useMemo")));
     }
-    const darkStylesDeclaration = t.variableDeclaration("const", [
-      t.variableDeclarator(t.identifier(DARK_STYLES_IDENTIFIER), t.objectExpression(darkProperties))
-    ]);
-    declarations.push(darkStylesDeclaration);
-  }
-  const lightKeys = colorSchemeStyleKeys.get("light");
-  if (lightKeys && lightKeys.size > 0) {
-    const lightProperties = [];
-    for (const styleKey of lightKeys) {
-      lightProperties.push(
-        t.objectProperty(
-          t.identifier(styleKey),
-          t.memberExpression(t.identifier(stylesIdentifier), t.identifier(styleKey))
-        )
-      );
-    }
-    const lightStylesDeclaration = t.variableDeclaration("const", [
-      t.variableDeclarator(t.identifier(LIGHT_STYLES_IDENTIFIER), t.objectExpression(lightProperties))
-    ]);
-    declarations.push(lightStylesDeclaration);
-  }
-  for (let i = declarations.length - 1; i >= 0; i--) {
-    body.splice(insertIndex, 0, declarations[i]);
+  } else {
+    const importDeclaration = t.importDeclaration(
+      [t.importSpecifier(t.identifier("useMemo"), t.identifier("useMemo"))],
+      t.stringLiteral("react")
+    );
+    path2.unshiftContainer("body", importDeclaration);
   }
 }
 
@@ -4383,6 +4432,9 @@ function programExit(path2, state, t) {
   if (state.needsColorSchemeImport && !state.hasColorSchemeImport) {
     addColorSchemeImport(path2, state.colorSchemeImportSource, state.colorSchemeHookName, t);
   }
+  if (state.reactCompilerCompatible && state.colorSchemeStyleKeys.size > 0) {
+    addUseMemoImport(path2, t);
+  }
   if (state.needsColorSchemeImport) {
     for (const functionPath of state.functionComponentsNeedingColorScheme) {
       injectColorSchemeHook(
@@ -4392,6 +4444,15 @@ function programExit(path2, state, t) {
         state.colorSchemeLocalIdentifier,
         t
       );
+      if (state.reactCompilerCompatible && state.colorSchemeStyleKeys.size > 0) {
+        injectColorSchemeStylesMemo(
+          functionPath,
+          state.colorSchemeStyleKeys,
+          state.colorSchemeVariableName,
+          state.stylesIdentifier,
+          t
+        );
+      }
     }
   }
   if (state.needsWindowDimensionsImport && !state.hasWindowDimensionsImport) {
@@ -4410,9 +4471,6 @@ function programExit(path2, state, t) {
   }
   if (state.styleRegistry.size > 0) {
     injectStylesAtTop(path2, state.styleRegistry, state.stylesIdentifier, t);
-    if (state.reactCompilerCompatible && state.colorSchemeStyleKeys.size > 0) {
-      injectColorSchemeStyleObjects(path2, state.colorSchemeStyleKeys, state.stylesIdentifier, t);
-    }
   }
 }
 
