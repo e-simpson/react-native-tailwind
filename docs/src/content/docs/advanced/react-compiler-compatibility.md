@@ -25,20 +25,19 @@ React Compiler might not recognize that the style array depends on `_twColorSche
 
 ## The Solution
 
-Enable `reactCompilerCompatible` mode to generate memoized style objects that React Compiler can properly track:
+Enable `reactCompilerCompatible` mode to generate a `useMemo` hook that properly tracks the color scheme dependency:
 
 ```tsx
 // With React Compiler compatibility
-const _twDarkStyles = {
-  _dark_bg_gray_900: _twStyles._dark_bg_gray_900,
-};
+const _twColorSchemeStyles = useMemo(
+  () => ({
+    _dark_bg_gray_900:
+      _twColorScheme === "dark" ? _twStyles._dark_bg_gray_900 : undefined,
+  }),
+  [_twColorScheme]
+);
 
-<View
-  style={[
-    _twStyles._bg_white,
-    _twColorScheme === "dark" && _twDarkStyles._dark_bg_gray_900,
-  ]}
-/>;
+<View style={[_twStyles._bg_white, _twColorSchemeStyles._dark_bg_gray_900]} />;
 ```
 
 ## Configuration
@@ -113,29 +112,31 @@ function Component() {
 <View className="bg-white dark:bg-gray-900" />
 
 // Output
+import { useMemo } from "react";
+
 const _twStyles = StyleSheet.create({
   _bg_white: { backgroundColor: "#ffffff" },
   _dark_bg_gray_900: { backgroundColor: "#111827" },
 });
 
-const _twDarkStyles = {
-  _dark_bg_gray_900: _twStyles._dark_bg_gray_900,
-};
-
 function Component() {
   const _twColorScheme = useColorScheme();
+  const _twColorSchemeStyles = useMemo(
+    () => ({
+      _dark_bg_gray_900:
+        _twColorScheme === "dark" ? _twStyles._dark_bg_gray_900 : undefined,
+    }),
+    [_twColorScheme]
+  );
   return (
     <View
-      style={[
-        _twStyles._bg_white,
-        _twColorScheme === "dark" && _twDarkStyles._dark_bg_gray_900,
-      ]}
+      style={[_twStyles._bg_white, _twColorSchemeStyles._dark_bg_gray_900]}
     />
   );
 }
 ```
 
-The memoized `_twDarkStyles` and `_twLightStyles` objects are created at module level, allowing React Compiler to properly track the dependency chain.
+The `useMemo` hook is injected inside the component with `_twColorScheme` as a dependency. This ensures React Compiler properly tracks the dependency and re-renders when the color scheme changes.
 
 ## When to Use
 
@@ -190,8 +191,8 @@ module.exports = {
 
 ### Generated Code Looks Different
 
-This is expected. React Compiler mode generates additional memoized objects (`_twDarkStyles`, `_twLightStyles`) to help React Compiler track dependencies.
+This is expected. React Compiler mode generates a `useMemo` hook (`_twColorSchemeStyles`) inside each component that uses color scheme modifiers. This helps React Compiler track the dependency on `_twColorScheme`.
 
 ### Bundle Size Increase
 
-React Compiler mode adds a small amount of code per file that uses color scheme modifiers. The increase is minimal (typically < 100 bytes per file) and is a worthwhile trade-off for correct behavior.
+React Compiler mode adds a small amount of code per component that uses color scheme modifiers. The increase is minimal and is a worthwhile trade-off for correct behavior with React Compiler.

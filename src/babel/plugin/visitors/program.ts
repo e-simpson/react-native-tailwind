@@ -9,9 +9,10 @@ import {
   addI18nManagerImport,
   addPlatformImport,
   addStyleSheetImport,
+  addUseMemoImport,
   addWindowDimensionsImport,
   injectColorSchemeHook,
-  injectColorSchemeStyleObjects,
+  injectColorSchemeStylesMemo,
   injectI18nManagerVariable,
   injectStylesAtTop,
   injectWindowDimensionsHook,
@@ -77,6 +78,11 @@ export function programExit(
     addColorSchemeImport(path, state.colorSchemeImportSource, state.colorSchemeHookName, t);
   }
 
+  // In React Compiler mode, add useMemo import if color scheme modifiers were used
+  if (state.reactCompilerCompatible && state.colorSchemeStyleKeys.size > 0) {
+    addUseMemoImport(path, t);
+  }
+
   // Inject color scheme hook in function components that need it
   if (state.needsColorSchemeImport) {
     for (const functionPath of state.functionComponentsNeedingColorScheme) {
@@ -87,6 +93,18 @@ export function programExit(
         state.colorSchemeLocalIdentifier,
         t,
       );
+
+      // In React Compiler mode, inject useMemo hook for color scheme styles
+      // This must be done after the useColorScheme hook is injected
+      if (state.reactCompilerCompatible && state.colorSchemeStyleKeys.size > 0) {
+        injectColorSchemeStylesMemo(
+          functionPath,
+          state.colorSchemeStyleKeys,
+          state.colorSchemeVariableName,
+          state.stylesIdentifier,
+          t,
+        );
+      }
     }
   }
 
@@ -113,12 +131,5 @@ export function programExit(
   // Only inject if we actually have styles to inject
   if (state.styleRegistry.size > 0) {
     injectStylesAtTop(path, state.styleRegistry, state.stylesIdentifier, t);
-
-    // In React Compiler mode, inject memoized color scheme style objects
-    // These are separate objects that reference the main StyleSheet styles,
-    // allowing React Compiler to properly track dependencies
-    if (state.reactCompilerCompatible && state.colorSchemeStyleKeys.size > 0) {
-      injectColorSchemeStyleObjects(path, state.colorSchemeStyleKeys, state.stylesIdentifier, t);
-    }
   }
 }

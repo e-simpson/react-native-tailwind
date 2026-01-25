@@ -527,7 +527,204 @@ export function injectStylesAtTop(
   body.splice(insertIndex, 0, styleSheet);
 }
 
+// Identifier for the memoized color scheme styles object
+export const COLOR_SCHEME_STYLES_IDENTIFIER = "_twColorSchemeStyles";
+
 /**
+ * Inject useMemo hook for color scheme styles inside a function component.
+ *
+ * This creates a memoized object that computes the active color scheme styles
+ * based on the current color scheme. React Compiler can properly track the
+ * dependency on _twColorScheme.
+ *
+ * Generated code:
+ * ```javascript
+ * const _twColorSchemeStyles = useMemo(() => ({
+ *   _dark_bg_gray_900: _twColorScheme === 'dark' ? _twStyles._dark_bg_gray_900 : undefined,
+ *   _light_bg_white: _twColorScheme === 'light' ? _twStyles._light_bg_white : undefined,
+ * }), [_twColorScheme]);
+ * ```
+ *
+ * @param functionPath - Path to the function component
+ * @param colorSchemeStyleKeys - Map of scheme ('dark' | 'light') to set of style keys
+ * @param colorSchemeVariableName - Name of the color scheme variable (e.g., '_twColorScheme')
+ * @param stylesIdentifier - Name of the main styles object (e.g., '_twStyles')
+ * @param t - Babel types
+ * @returns true if hook was injected, false if already exists or no styles to inject
+ */
+export function injectColorSchemeStylesMemo(
+  functionPath: NodePath<BabelTypes.Function>,
+  colorSchemeStyleKeys: Map<string, Set<string>>,
+  colorSchemeVariableName: string,
+  stylesIdentifier: string,
+  t: typeof BabelTypes,
+): boolean {
+  // Skip if no color scheme styles to inject
+  if (colorSchemeStyleKeys.size === 0) {
+    return false;
+  }
+
+  let body = functionPath.node.body;
+
+  // Handle concise arrow functions: () => <JSX />
+  // Convert to block statement: () => { return <JSX />; }
+  if (!t.isBlockStatement(body)) {
+    if (t.isArrowFunctionExpression(functionPath.node) && t.isExpression(body)) {
+      // Convert concise body to block statement with return
+      const returnStatement = t.returnStatement(body);
+      const blockStatement = t.blockStatement([returnStatement]);
+      functionPath.node.body = blockStatement;
+      body = blockStatement;
+    } else {
+      // Other non-block functions (shouldn't happen for components, but be safe)
+      return false;
+    }
+  }
+
+  // Check if useMemo hook is already injected
+  const hasHook = body.body.some((statement) => {
+    if (
+      t.isVariableDeclaration(statement) &&
+      statement.declarations.length > 0 &&
+      t.isVariableDeclarator(statement.declarations[0])
+    ) {
+      const declarator = statement.declarations[0];
+      return t.isIdentifier(declarator.id) && declarator.id.name === COLOR_SCHEME_STYLES_IDENTIFIER;
+    }
+    return false;
+  });
+
+  if (hasHook) {
+    return false; // Already injected
+  }
+
+  // Build the object properties for the useMemo callback
+  const objectProperties: BabelTypes.ObjectProperty[] = [];
+
+  // Process dark styles
+  const darkKeys = colorSchemeStyleKeys.get("dark");
+  if (darkKeys) {
+    for (const styleKey of darkKeys) {
+      // Create: _dark_bg_gray_900: _twColorScheme === 'dark' ? _twStyles._dark_bg_gray_900 : undefined
+      objectProperties.push(
+        t.objectProperty(
+          t.identifier(styleKey),
+          t.conditionalExpression(
+            t.binaryExpression("===", t.identifier(colorSchemeVariableName), t.stringLiteral("dark")),
+            t.memberExpression(t.identifier(stylesIdentifier), t.identifier(styleKey)),
+            t.identifier("undefined"),
+          ),
+        ),
+      );
+    }
+  }
+
+  // Process light styles
+  const lightKeys = colorSchemeStyleKeys.get("light");
+  if (lightKeys) {
+    for (const styleKey of lightKeys) {
+      // Create: _light_bg_white: _twColorScheme === 'light' ? _twStyles._light_bg_white : undefined
+      objectProperties.push(
+        t.objectProperty(
+          t.identifier(styleKey),
+          t.conditionalExpression(
+            t.binaryExpression("===", t.identifier(colorSchemeVariableName), t.stringLiteral("light")),
+            t.memberExpression(t.identifier(stylesIdentifier), t.identifier(styleKey)),
+            t.identifier("undefined"),
+          ),
+        ),
+      );
+    }
+  }
+
+  // Create the useMemo callback: () => ({ ... })
+  const memoCallback = t.arrowFunctionExpression([], t.objectExpression(objectProperties));
+
+  // Create the dependency array: [_twColorScheme]
+  const dependencyArray = t.arrayExpression([t.identifier(colorSchemeVariableName)]);
+
+  // Create: const _twColorSchemeStyles = useMemo(() => ({ ... }), [_twColorScheme])
+  const useMemoCall = t.variableDeclaration("const", [
+    t.variableDeclarator(
+      t.identifier(COLOR_SCHEME_STYLES_IDENTIFIER),
+      t.callExpression(t.identifier("useMemo"), [memoCallback, dependencyArray]),
+    ),
+  ]);
+
+  // Find the position to insert (after useColorScheme hook)
+  let insertIndex = 0;
+  for (let i = 0; i < body.body.length; i++) {
+    const statement = body.body[i];
+    if (
+      t.isVariableDeclaration(statement) &&
+      statement.declarations.length > 0 &&
+      t.isVariableDeclarator(statement.declarations[0])
+    ) {
+      const declarator = statement.declarations[0];
+      if (t.isIdentifier(declarator.id) && declarator.id.name === colorSchemeVariableName) {
+        // Found useColorScheme hook, insert after it
+        insertIndex = i + 1;
+        break;
+      }
+    }
+    insertIndex = i + 1;
+  }
+
+  // Insert the useMemo hook
+  body.body.splice(insertIndex, 0, useMemoCall);
+
+  return true;
+}
+
+/**
+ * Add useMemo import to the file or merge with existing react import
+ */
+export function addUseMemoImport(path: NodePath<BabelTypes.Program>, t: typeof BabelTypes): void {
+  // Check if there's already an import from react
+  const body = path.node.body;
+  let existingReactImport: BabelTypes.ImportDeclaration | null = null;
+
+  for (const statement of body) {
+    if (t.isImportDeclaration(statement) && statement.source.value === "react") {
+      // Skip type-only imports (they get erased at runtime)
+      if (statement.importKind === "type") {
+        continue;
+      }
+      // Skip namespace imports (import * as React) - can't add named specifiers to them
+      const hasNamespaceImport = statement.specifiers.some((spec) => t.isImportNamespaceSpecifier(spec));
+      if (hasNamespaceImport) {
+        continue;
+      }
+      existingReactImport = statement;
+      break; // Found a value import, we can stop
+    }
+  }
+
+  if (existingReactImport) {
+    // Check if useMemo is already imported
+    const hasUseMemo = existingReactImport.specifiers.some(
+      (spec) =>
+        t.isImportSpecifier(spec) && spec.imported.type === "Identifier" && spec.imported.name === "useMemo",
+    );
+
+    if (!hasUseMemo) {
+      // Add useMemo to existing react import
+      existingReactImport.specifiers.push(t.importSpecifier(t.identifier("useMemo"), t.identifier("useMemo")));
+    }
+  } else {
+    // No react import exists - create a new one
+    const importDeclaration = t.importDeclaration(
+      [t.importSpecifier(t.identifier("useMemo"), t.identifier("useMemo"))],
+      t.stringLiteral("react"),
+    );
+    path.unshiftContainer("body", importDeclaration);
+  }
+}
+
+/**
+ * @deprecated Use injectColorSchemeStylesMemo instead for React Compiler compatibility.
+ * This function injects static style objects at module level which doesn't work with React Compiler.
+ *
  * Inject memoized color scheme style objects for React Compiler compatibility.
  *
  * This creates separate style objects for dark and light schemes that reference
