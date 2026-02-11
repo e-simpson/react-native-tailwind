@@ -5,6 +5,7 @@ npm-debug.log
 yarn-error.log
 ios/generated/
 android/generated/
+dist/
 .idea/
 .vscode/
 tmp/
