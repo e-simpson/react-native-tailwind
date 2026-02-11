@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { describe, expect, it, vi } from "vitest";
 import { transform } from "../../../../test/helpers/babelTransform.js";
 import type { PluginOptions } from "../state.js";
@@ -767,5 +770,66 @@ describe("tw visitor - directional modifiers (RTL/LTR)", () => {
     // Should have both style properties
     expect(output).toContain("rtlStyle:");
     expect(output).toContain("ltrStyle:");
+  });
+});
+
+describe("tw/twStyle - CSS @apply aliases", () => {
+  function withTempCss(content: string, callback: (cssPath: string) => void): void {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "rntw-apply-tw-"));
+    const cssPath = path.join(tempDir, "tw-apply.css");
+
+    try {
+      fs.writeFileSync(cssPath, content, "utf8");
+      callback(cssPath);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  it("should expand aliases in tw tagged templates", () => {
+    withTempCss(
+      `
+      .button-base { @apply px-4 py-2 rounded; }
+      .button-primary { @apply button-base bg-blue-500 text-white; }
+    `,
+      (cssPath) => {
+        const input = `
+          import { tw } from '@mgcrea/react-native-tailwind';
+          const styles = tw\`button-primary\`;
+        `;
+
+        const output = transform(input, {
+          apply: {
+            files: [cssPath],
+          },
+        });
+
+        expect(output).toContain("_bg_blue_500_px_4_py_2_rounded_text_white");
+        expect(output).toContain("style:");
+      },
+    );
+  });
+
+  it("should expand aliases in twStyle calls", () => {
+    withTempCss(
+      `
+      .chip { @apply px-2 py-1 rounded bg-gray-200; }
+    `,
+      (cssPath) => {
+        const input = `
+          import { twStyle } from '@mgcrea/react-native-tailwind';
+          const styles = twStyle('chip');
+        `;
+
+        const output = transform(input, {
+          apply: {
+            files: [cssPath],
+          },
+        });
+
+        expect(output).toContain("_bg_gray_200_px_2_py_1_rounded");
+        expect(output).toContain("style:");
+      },
+    );
   });
 });

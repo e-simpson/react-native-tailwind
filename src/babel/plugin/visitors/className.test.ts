@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { describe, expect, it, vi } from "vitest";
 import { transform } from "../../../../test/helpers/babelTransform.js";
 
@@ -1621,5 +1624,118 @@ describe("className visitor - directional modifiers (RTL/LTR)", () => {
     // text-end expands to ltr:text-right rtl:text-left
     expect(output).toContain("_ltr_text_right");
     expect(output).toContain("_rtl_text_left");
+  });
+});
+
+describe("className visitor - CSS @apply aliases", () => {
+  function withTempCss(content: string, callback: (cssPath: string) => void): void {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "rntw-apply-classname-"));
+    const cssPath = path.join(tempDir, "tw-apply.css");
+
+    try {
+      fs.writeFileSync(cssPath, content, "utf8");
+      callback(cssPath);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  it("should expand static custom class from CSS @apply", () => {
+    withTempCss(
+      `
+      .disabled {
+        @apply font-light border-0 opacity-80 dark:bg-black light:bg-white;
+      }
+    `,
+      (cssPath) => {
+        const input = `
+          import { View } from 'react-native';
+          export function Component() {
+            return <View className="disabled" />;
+          }
+        `;
+
+        const output = transform(
+          input,
+          {
+            apply: {
+              files: [cssPath],
+            },
+          },
+          true,
+        );
+
+        expect(output).toContain('fontWeight: "300"');
+        expect(output).toContain("borderWidth: 0");
+        expect(output).toContain("opacity: 0.8");
+        expect(output).toContain("_dark_bg_black");
+        expect(output).toContain("_light_bg_white");
+        expect(output).toContain("useColorScheme");
+        expect(output).not.toContain("className");
+      },
+    );
+  });
+
+  it("should expand aliases in dynamic className branches", () => {
+    withTempCss(
+      `
+      .btn-base { @apply px-4 py-2 rounded; }
+      .btn-primary { @apply btn-base bg-blue-500 text-white; }
+      .btn-secondary { @apply btn-base bg-gray-200 text-black; }
+    `,
+      (cssPath) => {
+        const input = `
+          import { View } from 'react-native';
+          export function Component({ isPrimary }) {
+            return <View className={isPrimary ? "btn-primary" : "btn-secondary"} />;
+          }
+        `;
+
+        const output = transform(
+          input,
+          {
+            apply: {
+              files: [cssPath],
+            },
+          },
+          true,
+        );
+
+        expect(output).toContain("_bg_blue_500_px_4_py_2_rounded_text_white");
+        expect(output).toContain("_bg_gray_200_px_4_py_2_rounded_text_black");
+        expect(output).toContain("style: isPrimary ?");
+        expect(output).not.toContain("className");
+      },
+    );
+  });
+
+  it("should throw for circular @apply references", () => {
+    withTempCss(
+      `
+      .a { @apply b; }
+      .b { @apply c; }
+      .c { @apply a; }
+    `,
+      (cssPath) => {
+        const input = `
+          import { View } from 'react-native';
+          export function Component() {
+            return <View className="a" />;
+          }
+        `;
+
+        expect(() =>
+          transform(
+            input,
+            {
+              apply: {
+                files: [cssPath],
+              },
+            },
+            true,
+          ),
+        ).toThrow(/Circular @apply class reference detected/);
+      },
+    );
   });
 });

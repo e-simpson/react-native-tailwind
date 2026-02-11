@@ -6,6 +6,7 @@ import type { NodePath } from "@babel/core";
 import type * as BabelTypes from "@babel/types";
 import { parseClassName, splitModifierClasses } from "../../../parser/index.js";
 import { generateStyleKey } from "../../../utils/styleKey.js";
+import { expandApplyClasses } from "../../apply-loader.js";
 import { processTwCall } from "../../utils/twProcessing.js";
 import { findComponentScope } from "../componentScope.js";
 import type { PluginState } from "../state.js";
@@ -60,9 +61,21 @@ export function taggedTemplateVisitor(
 
   state.hasClassNames = true;
 
+  let expandedClassName: string;
+  try {
+    expandedClassName = expandApplyClasses(
+      className,
+      state.applyClassRegistry,
+      state.applyClassNameCache,
+      state.applyAliasCache,
+    );
+  } catch (error) {
+    throw path.buildCodeFrameError(error instanceof Error ? error.message : String(error));
+  }
+
   // Process the className with modifiers
   processTwCall(
-    className,
+    expandedClassName,
     path,
     state,
     parseClassName,
@@ -131,9 +144,21 @@ export function callExpressionVisitor(
 
   state.hasClassNames = true;
 
+  let expandedClassName: string;
+  try {
+    expandedClassName = expandApplyClasses(
+      className,
+      state.applyClassRegistry,
+      state.applyClassNameCache,
+      state.applyAliasCache,
+    );
+  } catch (error) {
+    throw path.buildCodeFrameError(error instanceof Error ? error.message : String(error));
+  }
+
   // Process the className with modifiers
   processTwCall(
-    className,
+    expandedClassName,
     path,
     state,
     parseClassName,

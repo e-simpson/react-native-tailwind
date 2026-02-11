@@ -17,6 +17,7 @@ import {
   splitModifierClasses,
 } from "../../../parser/index.js";
 import { generateStyleKey } from "../../../utils/styleKey.js";
+import { expandApplyClasses } from "../../apply-loader.js";
 import { getTargetStyleProp, isAttributeSupported } from "../../utils/attributeMatchers.js";
 import { processColorSchemeModifiers } from "../../utils/colorSchemeModifierProcessing.js";
 import { getComponentModifierSupport, getStatePropertyForModifier } from "../../utils/componentSupport.js";
@@ -69,6 +70,15 @@ export function jsxAttributeVisitor(
 
   // Determine target style prop based on attribute name
   const targetStyleProp = getTargetStyleProp(attributeName);
+  const splitModifierClassesWithApply = (className: string) =>
+    splitModifierClasses(
+      expandApplyClasses(
+        className,
+        state.applyClassRegistry,
+        state.applyClassNameCache,
+        state.applyAliasCache,
+      ),
+    );
 
   /**
    * Process static className string (handles both direct StringLiteral and StringLiteral in JSXExpressionContainer)
@@ -85,7 +95,23 @@ export function jsxAttributeVisitor(
     state.hasClassNames = true;
 
     // Check if className contains modifiers (active:, hover:, focus:, placeholder:, ios:, android:, web:, dark:, light:, scheme:)
-    const { baseClasses, modifierClasses: rawModifierClasses } = splitModifierClasses(trimmedClassName);
+    let expandedClassName: string;
+    let baseClasses: string[];
+    let rawModifierClasses: ParsedModifier[];
+
+    try {
+      expandedClassName = expandApplyClasses(
+        trimmedClassName,
+        state.applyClassRegistry,
+        state.applyClassNameCache,
+        state.applyAliasCache,
+      );
+      const splitResult = splitModifierClasses(expandedClassName);
+      baseClasses = splitResult.baseClasses;
+      rawModifierClasses = splitResult.modifierClasses;
+    } catch (error) {
+      throw path.buildCodeFrameError(error instanceof Error ? error.message : String(error));
+    }
 
     // Expand scheme: modifiers into dark: and light: modifiers
     const modifierClasses: ParsedModifier[] = [];
@@ -414,7 +440,7 @@ export function jsxAttributeVisitor(
               state,
               parseClassName,
               generateStyleKey,
-              splitModifierClasses,
+              splitModifierClassesWithApply,
               t,
             );
             const modifierTypes = Array.from(new Set(supportedModifierClasses.map((m) => m.modifier)));
@@ -432,11 +458,11 @@ export function jsxAttributeVisitor(
         } else {
           // All modifiers are supported - process normally
           const styleExpression = processStaticClassNameWithModifiers(
-            trimmedClassName,
+            expandedClassName,
             state,
             parseClassName,
             generateStyleKey,
-            splitModifierClasses,
+            splitModifierClassesWithApply,
             t,
           );
           const modifierTypes = usedModifiers;
@@ -605,7 +631,7 @@ export function jsxAttributeVisitor(
         state,
         parseClassName,
         generateStyleKey,
-        splitModifierClasses,
+        splitModifierClassesWithApply,
         processPlatformModifiers,
         processColorSchemeModifiers,
         componentScope,
@@ -632,6 +658,10 @@ export function jsxAttributeVisitor(
         return;
       }
     } catch (error) {
+      if (error instanceof Error && error.message.includes("Circular @apply class reference")) {
+        throw path.buildCodeFrameError(error.message);
+      }
+
       // Fall through to warning
       if (process.env.NODE_ENV !== "production") {
         console.warn(

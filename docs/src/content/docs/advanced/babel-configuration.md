@@ -42,6 +42,11 @@ module.exports = {
           darkSuffix: "-dark",
           lightSuffix: "-light",
         },
+
+        // Custom CSS classes via @apply
+        apply: {
+          files: ["./src/styles/tw-components.css"],
+        },
       },
     ],
   ],
@@ -185,6 +190,45 @@ Configure `scheme:` modifier color suffixes.
 
 See [Color Scheme - Scheme Modifier](/react-native-tailwind/guides/color-scheme/#scheme-modifier-convenience) for more details.
 
+### `apply`
+
+Load custom reusable classes from CSS files that contain `@apply` rules.
+
+**Type:** `{ files: string[] }`
+
+**Default:** `undefined`
+
+**Supported syntax:**
+
+- Simple class selectors only: `.button { @apply ...; }`
+- Comma selectors are supported: `.card, .panel { @apply ...; }`
+- Nested aliases are supported: `.primary { @apply button-base bg-blue-500; }`
+
+**Examples:**
+
+```javascript
+{
+  apply: {
+    files: ["./src/styles/tw-components.css"]
+  }
+}
+
+{
+  apply: {
+    files: [
+      "./src/styles/foundation.css",
+      "./src/styles/components.css"
+    ]
+  }
+}
+```
+
+**Notes:**
+
+- Paths can be absolute or relative to the project root.
+- Circular alias references throw a build error.
+- Only `@apply` declarations are processed; other CSS declarations are ignored.
+
 ## Complete Example
 
 ```javascript
@@ -211,6 +255,11 @@ module.exports = {
         schemeModifier: {
           darkSuffix: "Dark",
           lightSuffix: "Light",
+        },
+
+        // Reusable custom classes from CSS @apply
+        apply: {
+          files: ["./src/styles/tw-components.css"],
         },
       },
     ],
@@ -258,5 +307,6 @@ npx react-native start --reset-cache
 - [Custom Attributes](/react-native-tailwind/advanced/custom-attributes/)
 - [Custom Styles Identifier](/react-native-tailwind/advanced/custom-styles-identifier/)
 - [Custom Color Scheme Hook](/react-native-tailwind/advanced/custom-color-scheme-hook/)
+- [Reusable Components](/react-native-tailwind/guides/reusable-components/)
 - [Custom Colors](/react-native-tailwind/advanced/custom-colors/)
 - [Troubleshooting](/react-native-tailwind/advanced/troubleshooting/)

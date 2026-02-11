@@ -6,6 +6,8 @@ import type { NodePath, PluginPass } from "@babel/core";
 import type * as BabelTypes from "@babel/types";
 import type { SchemeModifierConfig } from "../../types/config.js";
 import type { StyleObject } from "../../types/core.js";
+import type { ApplyClassRegistry } from "../apply-loader.js";
+import { loadApplyClassRegistry } from "../apply-loader.js";
 import type { CustomTheme } from "../config-loader.js";
 import { extractCustomTheme } from "../config-loader.js";
 import { DEFAULT_CLASS_ATTRIBUTES, buildAttributeMatchers } from "../utils/attributeMatchers.js";
@@ -82,6 +84,22 @@ export type PluginOptions = {
      */
     importName?: string;
   };
+
+  /**
+   * Configuration for custom classes defined via CSS @apply rules.
+   *
+   * @example
+   * {
+   *   files: ['./src/styles/tw-components.css']
+   * }
+   */
+  apply?: {
+    /**
+     * CSS files containing class aliases that use @apply.
+     * Only simple class selectors are supported (e.g. .button { @apply ...; }).
+     */
+    files?: string[];
+  };
 };
 
 /**
@@ -115,6 +133,9 @@ export type PluginState = PluginPass & {
   // Track tw/twStyle imports from main package
   twImportNames: Set<string>; // e.g., ['tw', 'twStyle'] or ['tw as customTw']
   hasTwImport: boolean;
+  applyClassRegistry: ApplyClassRegistry;
+  applyClassNameCache: Map<string, string>; // Cache expanded className strings
+  applyAliasCache: Map<string, string[]>; // Cache resolved alias expansions
   // Track react-native import path for conditional StyleSheet/Platform injection
   reactNativeImportPath?: NodePath<BabelTypes.ImportDeclaration>;
   // Track function components that need colorScheme hook injection
@@ -150,6 +171,7 @@ export function createInitialState(
 
   // Load custom theme from tailwind.config.*
   const customTheme = extractCustomTheme(filename);
+  const applyClassRegistry = loadApplyClassRegistry(options?.apply, filename);
 
   return {
     styleRegistry: new Map(),
@@ -178,6 +200,9 @@ export function createInitialState(
     stylesIdentifier,
     twImportNames: new Set(),
     hasTwImport: false,
+    applyClassRegistry,
+    applyClassNameCache: new Map(),
+    applyAliasCache: new Map(),
     reactNativeImportPath: undefined,
     functionComponentsNeedingColorScheme: new Set(),
     functionComponentsNeedingWindowDimensions: new Set(),
