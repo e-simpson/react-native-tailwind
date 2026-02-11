@@ -417,6 +417,12 @@ describe("isColorClass", () => {
     expect(isColorClass("border-black")).toBe(true);
   });
 
+  it("should return true for outline color classes", () => {
+    expect(isColorClass("outline-red-500")).toBe(true);
+    expect(isColorClass("outline-systemGray")).toBe(true);
+    expect(isColorClass("outline-black")).toBe(true);
+  });
+
   it("should return false for non-color classes", () => {
     expect(isColorClass("m-4")).toBe(false);
     expect(isColorClass("p-2")).toBe(false);
@@ -478,6 +484,21 @@ describe("expandSchemeModifier", () => {
     expect((result as [ParsedModifier, ParsedModifier])[1]).toEqual({
       modifier: "light",
       baseClass: "border-accent-light",
+    });
+  });
+
+  it("should expand outline color scheme modifier", () => {
+    const modifier = { modifier: "scheme" as const, baseClass: "outline-primary" };
+    const result = expandSchemeModifier(modifier, customColors);
+
+    expect(result).toHaveLength(2);
+    expect((result as [ParsedModifier, ParsedModifier])[0]).toEqual({
+      modifier: "dark",
+      baseClass: "outline-primary-dark",
+    });
+    expect((result as [ParsedModifier, ParsedModifier])[1]).toEqual({
+      modifier: "light",
+      baseClass: "outline-primary-light",
     });
   });
 
